@@ -1,0 +1,106 @@
+### Algorithm for bandwidth extraction from main filter lobe 
+##  Using Lumerical scripting language
+
+thresh = 0.5;       #Threshold for inflection point of main region (typically 0.5)
+ip_thresh = 0.3;    #Threshold for inflection points (overall; typically <0.5)
+ex_w = 1;         #Weight for ex ratio (for FOM)
+
+t = getresult("tr_n50", "T"); Tr = t.T;
+r = getresult("ref", "T"); Ref = r.T;
+w_um = flip(3e8/(t.f),1); tr_au = flip(Tr,1); ref_au = flip(abs(Ref),1); #Flip to adjust indices
+plot(w_um, ref_au);holdon; plot(w_um, tr_au);holdon;
+
+r_max = max(ref_au); i_max = find(max(ref_au)); w_max = w_um(find(ref_au == r_max)); ref_max = r_max;
+r_min = min(ref_au); i_min = find(min(ref_au));w_min = w_um(find(ref_au == r_min)); 
+#Lumerical_functions;
+
+#Function to find half point:
+function half_pt_fn(lam_in, sig_norm){
+    lam_interp = linspace(lam_in(1), lam_in(end), 1000);
+    sig_interp = interp(sig_norm, lam_in, lam_interp);
+    hp_pts = zeros(1,2);
+    #hp_pts(1) = lam_interp(round(interp(sig_interp, 1:length(sig_interp), max(sig_interp)/2 )));
+    hp_pts(1) = lam_interp(round(interp(1:length(sig_interp), sig_interp, max(sig_interp)/2 )));
+    hp_pts(2) = sig_interp(round(interp(1:length(sig_interp), sig_interp, max(sig_interp)/2 )));
+    return hp_pts;  }
+    
+function diff(sig){
+    d = zeros(length(sig)-1);
+ for (i=(1:length(d))){
+    d(i) = sig(i+1)- sig(i) ;}
+ return d;   
+}
+###MODIFICATIONS from here:
+ref_sm = ref_au/max(ref_au); tr_sm = tr_au/max(tr_au); #Normalize response   
+ref_sign = zeros(length(ref_sm),1);a = zeros(length(ref_sm),1);      #Track difference in adjacent values and change in slope
+ref_track = zeros(length(ref_sm),1); w_track = zeros(length(ref_sm),1);b = zeros(length(ref_sm),1);#Track inflection points
+#plot(w_um, ref_sm);
+
+for (i = 1: length(ref_sm)-1){
+    a(i,1) = ref_sm(i+1,1)- ref_sm(i,1);    #Track difference between adjacent values
+    #ref_sign(1) = 0;
+    if (a(i) > 0){
+         ref_sign(i,1) = 1;}     #If adjacent val > current, asref_sign ref_sign = 1, else ref_sign = 0
+    else{
+         ref_sign(i) = 0;}}
+ref_sign(end) = ref_sign(end-1);    #Repeat second-last value of ref_sign as last value (inconsequentional)
+
+for (i = 1: length(b)-1) {
+    b(i,1) = ref_sign(i+1,1)- ref_sign(i,1);    #Track difference between adjacent values
+    if ((b(i) == 1)|(b(i) == -1)){
+        #ref_track(i-1) = ref_sm(i-1,:);
+        ref_track(i) = ref_sm(i,:);
+        #w_track(i-1) = w_um(i-1,:);
+        w_track(i) = w_um(i,:);}}
+##mark_ref, w_mark : inflection points
+w_mark = w_track(find(w_track>0));ref_mark = ref_track(find(ref_track>0));
+#plot(w_mark, ref_mark);holdon;  
+
+##Extract regions with extinction >0.5 
+const = zeros(length(ref_mark));ref_hp = zeros(length(ref_mark)); w_hp = zeros(length(ref_mark));
+ref_hp(1) = 0; w_hp(1) = 0; const(1) = ref_mark(end) - ref_mark(1);        
+for (i = 2: length(ref_mark)){  
+    const(i,1) = ref_mark(i,1) - ref_mark(i-1,1);
+    if (const(i) > ip_thresh | const(i) < -ip_thresh){
+        ref_hp(i-1) = ref_mark(i-1);ref_hp(i) = ref_mark(i);
+        w_hp(i-1) = w_mark(i-1);w_hp(i) = w_mark(i);}}   
+ref_mark_mp = ref_hp(find(ref_hp!=0)); w_mark_mp = w_hp(find(ref_hp!=0));
+#plot(w_mark_mp, ref_mark_mp); holdon;
+
+d_temp = findpeaks(ref_mark_mp);ref_peak1 = ref_mark_mp(d_temp);w_peak1 = w_mark_mp(d_temp);
+
+ref_main = zeros(3); w_main = zeros(3);
+ref_main(2) = ref_peak1; w_main(2) = w_peak1;
+for(i =1:find(ref_mark_mp == ref_peak1)){
+ if(ref_mark_mp(i) < thresh) {
+     ref_main(1) = ref_mark_mp(i); 
+     w_main(1) = w_mark_mp(i);}
+ i= i+1; }
+#Flip from peak-ref point to end and find inflection point closest to peak
+ref_mark_mp_m = ref_mark_mp(find(ref_mark_mp == ref_peak1): length(ref_mark_mp));
+w_mark_mp_m = w_mark_mp(find(ref_mark_mp == ref_peak1) : length(ref_mark_mp));
+ref_mark_mp2 = flip(ref_mark_mp_m,1);   w_mark_mp2 = flip(w_mark_mp_m,1);
+for(i =1:length(ref_mark_mp2)-1){
+if(ref_mark_mp2(i)<thresh) {   
+    ref_main(3) = ref_mark_mp2(i);
+    w_main(3) = w_mark_mp2(i);}
+    i=i+1; }    
+#plot(w_main, ref_main); holdon;
+
+e_ratio = max(ref_main) - min (ref_main);   #Extinction ratio of main region   
+#Find FWHM points:
+w1 = w_um(find(w_um == w_main(1)): find(w_um == w_peak1)); 
+sig1 = ref_sm(find(w_um == w_main(1)): find(w_um == w_peak1));
+#plot(w1, sig1);
+hp_main_left = half_pt_fn(w1, sig1);
+
+w2 = w_um(find(w_um == w_peak1): find(w_um == w_main(end))); 
+sig2 = ref_sm(find(w_um == w_peak1): find(w_um == w_main(end)));
+hp_main_right = half_pt_fn(w2, sig2);
+
+bw_main = hp_main_right(1) - hp_main_left(1);   ? main_bw = bw_main; 
+bw_ex = bw_main/(ex_w*e_ratio);
+
+plot(hp_main_left(1), hp_main_left(2)*ref_max); holdon; plot(hp_main_right(1), hp_main_right(2)*ref_max);
+legend('tr', 'ref','main_bw_left', 'main_bw_right');
+?fom_bw_ex = bw_ex;

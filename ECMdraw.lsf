@@ -4,7 +4,6 @@
 #select("bragg");delete;
 #selectpartial("wg");delete;
 
-##Parameter values from optim22_nops_optimization_best_solution:
 deleteall;
 
 c_app = -3;     #apodization strength

@@ -1,4 +1,4 @@
-### Algorithm for bandwidth extraction from main filter lobe 
+### bandwidth_analysis.lsf -- Algorithm for bandwidth extraction from main filter lobe 
 ##  Using Lumerical scripting language
 
 thresh = 0.5;       #Threshold for inflection point of main region (typically 0.5)

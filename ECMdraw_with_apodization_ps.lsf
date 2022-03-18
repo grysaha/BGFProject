@@ -1,0 +1,214 @@
+###ECMBGF (w/o ps) with Gaussian apodization function by varying gap size along filter length
+## Apodization strength can be varied by choosing c_app
+switchtolayout;
+selectpartial("bragg");delete;
+
+##Parameter values from optim22_nops_optimization_best_solution:
+##Nominal filter parameters (for C-Band)
+width_ridge = 0.35e-6;
+L_pd = 0.335e-6;
+B_gap = 0.28e-6;
+Delta_Wy = 0.52e-6;
+N_gt = 100;
+dc = 0.45;
+asym = 0;
+c_app = -0.75;      #apodization strength
+ps = 2;         #L_pd x ps = phase-shift section length
+ps_pos = 0.5;   #position of ps-section wrt total filter length (0.5 = middle of filter)
+#dy = 0.005e-6;
+thick_Si = 0.15e-6;
+
+##
+addstructuregroup; set("name","bragg_wg");
+set("x", 0); set("y", 0); set("z", 0);
+#set("construction group",1);
+adduserprop("width_ridge", 2, width_ridge);
+adduserprop("L_pd", 2, L_pd);
+adduserprop("B_gap", 2, B_gap);
+adduserprop("Delta_Wy", 2, Delta_Wy);
+adduserprop("N_gt", 0, N_gt);
+adduserprop("dc", 0, dc);
+adduserprop("asym", 0, asym);
+adduserprop("c_app", 0, c_app);
+adduserprop("ps", 0, ps);
+adduserprop("ps_pos", 0, ps_pos);
+adduserprop("thick_Si", 2, thick_Si);
+
+
+set("script",'
+
+
+
+    #selectpartial("bragg");delete;
+    #selectpartial("wg");delete;
+    #Cladding Substrate
+    ##Other values:
+        
+        thick_BOX = 1.5e-6;
+        wg_width = width_ridge;
+        B_ex = 0.1e-6;
+        thick_total = 2*thick_BOX+thick_Si+B_ex;
+        Delta_W = L_pd*dc; 	          # Corrugation x-width
+        x_offset = asym*L_pd;
+        P_gap = L_pd-Delta_W; 	# spacing between cylinders  	
+        bg1_end = (N_gt/2)*L_pd ;
+        W_ex = 2e-6; 	# simulation size margins
+        W_ox = wg_width+2*(B_gap+Delta_Wy) + 2*W_ex; #total width of each grating unit
+        L_ex = 2e-6;
+        #L_total = L_gt+2*L_ex;
+        Ps_length = L_pd*ps;            # Phase shift length
+        L_gt = 2*N_gt*L_pd+Ps_length;   # Grating length
+       
+        material_Si = "Si (Silicon) - Dispersive & Lossless";
+        material_Clad = "SiO2 (Glass) - Const";
+        material_BOX = "SiO2 (Glass) - Const"; 
+        space = width_ridge+B_gap;
+        #ap_offset = (N_gt/2)*dy;
+    #Condition to check if ps = 1 for no phase shift length
+    if(ps == 1){
+        L_total = (N_gt)*L_pd;    
+        addrect;
+        set("x min",-2*L_ex);	set("x max",L_total+5000*L_ex);
+        set("y",0); 	set("y span",W_ox);
+        set("z",0);		set("z span",2*thick_BOX+thick_Si);
+        set("material",material_BOX);
+        set("name","wg_cladding");
+        set("override mesh order from material database",1);
+        set("mesh order",3);  # similar to "send to back", put the cladding as a background.
+        set("alpha", 0.3);
+        
+        # Waveguide
+        addrect;
+        set("x min",-2*L_ex);	set("x max",L_total+5000*L_ex);
+        set("y",0);		set("y span",width_ridge);
+        set("z",0);		set("z span",thick_Si);
+        set("material",material_Si);
+        set("name","wg");
+        
+        # apodized grating section
+        x_min_array = [0:L_pd:L_total+(L_pd/2)]; cnt = 1;
+        x_app = zeros(N_gt+1);dy_app = zeros(N_gt+1);
+        for(i = 0; i <= L_total+(Delta_W); i = i+L_pd )
+        {    
+            x_app(cnt) = i;
+            ####Grating Gaussian apodization function:
+            dy_app(cnt) = B_gap * exp((-c_app * (i - 0.5*L_total)^2) / L_total^2 ); 
+            
+            # Grating Cylinders (if ps_flag = 0)
+            addrect;
+            set("x min",x_app(cnt)+x_offset);	set("x max",x_app(cnt)+Delta_W+x_offset);
+            set("y",(width_ridge+Delta_Wy)/2 +dy_app(cnt));	set("y span",Delta_Wy);
+            set("z",0);		set("z span",thick_Si);
+            set("material",material_Si);
+            set("name","grt_top_"+num2str(cnt-1));    
+            addrect;
+            set("x min",x_app(cnt));	set("x max",x_app(cnt)+Delta_W);
+            set("y",-(width_ridge+Delta_Wy)/2 -dy_app(cnt));	set("y span",Delta_Wy);
+            set("z",0);		set("z span",thick_Si);
+            set("material",material_Si);
+            set("name","grt_bot_"+num2str(cnt-1));
+            cnt = cnt+1;
+            }
+        selectpartial("grt_");addtogroup("bragg");
+        select("bragg");
+     }
+    ######################## 
+    ######################## 
+    ## When ps-section is unequal to L_pd:
+    else{
+        L_total = (N_gt)*L_pd + (ps*Delta_W)+2*L_pd;           #Total filter length 
+        addrect;
+        set("x min",-2*L_ex);	set("x max",L_total+5000*L_ex);
+        set("y",0); 	set("y span",W_ox);
+        set("z",0);		set("z span",2*thick_BOX+thick_Si);
+        set("material",material_BOX);
+        set("name","wg_cladding");
+        set("override mesh order from material database",1);
+        set("mesh order",3);  # similar to "send to back", put the cladding as a background.
+        set("alpha", 0.3);
+        
+        # Waveguide
+        addrect;
+        set("x min",-2*L_ex);	set("x max",L_total+5000*L_ex);
+        set("y",0);		set("y span",width_ridge);
+        set("z",0);		set("z span",thick_Si);
+        set("material",material_Si);
+        set("name","wg");
+       
+        # apodized grating section 1
+        L_ps = ((N_gt*ps_pos)-1)*L_pd;     #Length of filter where ps section starts
+        x_min_array = [0:L_pd:L_ps+(L_pd/2)]; cnt = 1;
+        x_app = zeros(N_gt/2+1);dy_app = zeros(N_gt/2+1);
+        for(i = 0; i <= L_ps+(Delta_W); i = i+L_pd )
+        {   cnt;i; 
+            x_app(cnt) = i;
+            ####Grating Gaussian apodization function:
+            dy_app(cnt) = B_gap * exp((-c_app * (i - L_ps)^2) / L_ps^2 );
+            
+            # Grating Cylinders (if ps_flag = 0)
+            addrect;
+            set("x min",x_app(cnt)+x_offset);	set("x max",x_app(cnt)+Delta_W+x_offset);
+            set("y",(width_ridge+Delta_Wy)/2 +dy_app(cnt));	set("y span",Delta_Wy);
+            set("z",0);		set("z span",thick_Si);
+            set("material",material_Si);
+            set("name","grt_top_"+num2str(cnt-1));    
+            addrect;
+            set("x min",x_app(cnt));	set("x max",x_app(cnt)+Delta_W);
+            set("y",-(width_ridge+Delta_Wy)/2 -dy_app(cnt));	set("y span",Delta_Wy);
+            set("z",0);		set("z span",thick_Si);
+            set("material",material_Si);
+            set("name","grt_bot_"+num2str(cnt-1));
+            cnt = cnt+1;
+            }
+        selectpartial("grt_");addtogroup("bragg");
+
+        # ps-section
+            addrect;
+            set("x min",L_ps+L_pd+x_offset);	set("x max",L_ps+L_pd+Delta_W*ps+x_offset);
+            set("y",(width_ridge+Delta_Wy)/2 +B_gap);	set("y span",Delta_Wy);
+            set("z",0);		set("z span",thick_Si);
+            set("material",material_Si);
+            set("name","ps_top");    
+            addrect;
+            set("x min",L_ps+L_pd);	set("x max",L_ps+L_pd+Delta_W*ps);
+            set("y",-(width_ridge+Delta_Wy)/2 -B_gap);	set("y span",Delta_Wy);
+            set("z",0);		set("z span",thick_Si);
+            set("material",material_Si);
+            set("name","ps_bot");
+            cnt = cnt+1; 
+            selectpartial("ps_");addtogroup("bragg");       
+        
+        # apodized grating section 2
+        
+        ps_end = L_ps+ps*Delta_W+(L_pd-Delta_W);
+        #ps_end = L_ps+L_pd+Delta_W*ps+x_offset + Delta_W;     # End of ps + first gratng section
+        x_min_array = [ps_end:L_pd:L_total+(L_pd/2)]; 
+        
+        x_app = zeros(N_gt/2+1);dy_app = zeros(N_gt/2+1);cnt = 1;
+        for(i = ps_end+L_pd; i <= L_total-L_pd; i = i+L_pd )
+        {   ? cnt;?i;
+            x_app(cnt) = i;
+            ####Grating Gaussian apodization function:
+            dy_app(cnt) = B_gap * exp((-c_app * (i-L_ps)^2) / L_ps^2 ); 
+            
+            # Grating Cylinders (if ps_flag = 0)
+            addrect;
+            set("x min",x_app(cnt)+x_offset);	set("x max",x_app(cnt)+Delta_W+x_offset);
+            set("y",(width_ridge+Delta_Wy)/2 +dy_app(cnt));	set("y span",Delta_Wy);
+            set("z",0);		set("z span",thick_Si);
+            set("material",material_Si);
+            set("name","grt2_top_"+num2str(cnt-1));    
+            addrect;
+            set("x min",x_app(cnt));	set("x max",x_app(cnt)+Delta_W);
+            set("y",-(width_ridge+Delta_Wy)/2 -dy_app(cnt));	set("y span",Delta_Wy);
+            set("z",0);		set("z span",thick_Si);
+            set("material",material_Si);
+            set("name","grt2_bot_"+num2str(cnt-1));
+            cnt = cnt+1;
+            }
+        selectpartial("grt2_");addtogroup("bragg");        
+    }
+
+
+');
+

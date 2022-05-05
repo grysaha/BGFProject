@@ -1,0 +1,65 @@
+##Script to sweep over different parameters for ECM-/ standard BGF
+##
+lam_start = 1200e-9;
+lam_end = 1750e-9;
+lam = linspace(lam_start,lam_end, 2000);
+
+## Source
+addmodesource;
+set('injection axis','x-axis');
+set('mode selection','fundamental mode');
+set('x',-1.5e-6);		#set('x span',L_total);		
+set('y',0);		set('y span',2e-6);
+set('wavelength start',lam_start);
+set('wavelength stop',lam_end);
+
+run;
+ECM_analysis;
+matlabsave("ECM_45clo_pre_sim_varfd",lam, tr_au, ref_au);
+
+
+##########################################################################################
+###Sweeps:
+
+sn ="sweep_asym_varfd";
+runsweep(sn); #run the two orthogonal simulations
+T_data = getsweepdata(sn, "Tr");
+R_data = getsweepdata(sn, "Ref");
+matlabsave(sn, lam, T_data, R_data);
+
+sn ="sweep_dc_varfd";
+runsweep(sn); #run the two orthogonal simulations
+T_data = getsweepdata(sn, "Tr");
+R_data = getsweepdata(sn, "Ref");
+
+matlabsave(sn, lam, T_data, R_data);
+
+sn ="sweep_ps_varfd";
+runsweep(sn); #run the two orthogonal simulations
+T_data = getsweepdata(sn, "Tr");
+R_data = getsweepdata(sn, "Ref");
+matlabsave(sn, lam, T_data, R_data);
+
+sn ="sweep_width_varfd";
+runsweep(sn); #run the two orthogonal simulations
+T_data = getsweepdata(sn, "Tr");
+R_data = getsweepdata(sn, "Ref");
+matlabsave(sn, lam, T_data, R_data);
+
+sn ="sweep_gap_varfd";
+runsweep(sn); #run the two orthogonal simulations
+T_data = getsweepdata(sn, "Tr");
+R_data = getsweepdata(sn, "Ref");
+matlabsave(sn, lam, T_data, R_data);
+
+sn ="sweep_Dy_varfd";
+runsweep(sn); #run the two orthogonal simulations
+T_data = getsweepdata(sn, "Tr");
+R_data = getsweepdata(sn, "Ref");
+matlabsave(sn, lam, T_data, R_data);
+
+sn ="sweep_capp_varfd";
+runsweep(sn); #run the two orthogonal simulations
+T_data = getsweepdata(sn, "Tr");
+R_data = getsweepdata(sn, "Ref");
+matlabsave(sn, lam, T_data, R_data);
